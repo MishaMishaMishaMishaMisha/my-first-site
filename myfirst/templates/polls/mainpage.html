@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Головна сторінка</title>
+
+</head>
+
+<body>
+
+    <br>
+    {% if request.user.is_authenticated %}
+        Вы вошли как <strong>{{ user.username }}</strong> |
+        <a href="{% url 'polls:logout' %}">Вийти</a>
+    {% else %}
+        <div>
+            <a href="{% url 'polls:register' %}">Реєестрація</a>
+            <br>
+            <a href="{% url 'polls:login' %}">Увійти</a>
+        </div>
+    {% endif %}
+
+    <br>
+
+    <br>
+    <form action="{% url 'polls:createDashboard' %}" method="post">
+        {% csrf_token %}
+        <textarea name="name" required="" placeholder="Введіть назву дашбоарду" cols="30" rows="3"></textarea><br>
+        <button type="submit">Створити дашбоард</button>
+    </form>
+
+    <br>
+    <br>
+
+    <form id="dashboard-form" method="post">
+        {% csrf_token %}
+        <input type="text" id="dashboard-key-input" name="dashboard_key" required="" placeholder="Введіть ключ дашбоарду">
+        <button type="submit">Знайти дашбоард</button>
+    </form>
+
+    <p id="error-message" style="display: none;"></p>
+
+    <br>
+    <br>
+
+    {% if list %}
+        Ваші дашбоарди
+
+        {% for d in list %}
+            <br>
+            <a href="{% url 'polls:index' d.id %}">{{ d.dashboard_name }}</a>
+        {% endfor %}
+
+    {% else %}
+        Ваші дашбоарди не знайдені
+    {%  endif %}
+
+
+</body>
+
+</html>
+
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $(document).ready(function() {
+    $('#dashboard-form').on('submit', function(event) {
+      event.preventDefault(); // Предотвращает отправку формы по умолчанию
+
+      var dashboardKey = $('#dashboard-key-input').val();
+
+      // Отправка AJAX-запроса
+      $.ajax({
+        type: 'POST',
+        url: '/find_dashboard/',  // URL для обработки AJAX-запроса
+        data: {
+          'dashboard_key': dashboardKey,
+          'csrfmiddlewaretoken': '{{ csrf_token }}'  // CSRF-токен для безопасности
+        },
+        success: function(response) {
+          if (response.success) {
+            // Если ключ правильный, перенаправление на страницу дашбоарда
+            window.location.href = response.redirect_url;
+          } else {
+            // Если ключ неправильный, отображение сообщения об ошибке
+            $('#error-message').text(response.error_message).show();
+          }
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+

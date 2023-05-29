@@ -1,0 +1,391 @@
+<head>
+    <meta charset="UTF-8">
+    <title>{{ dashboard.dashboard_name }}</title>
+
+</head>
+
+
+
+<div style="display: flex; align-items: center; gap: 10px;">
+    <h3>{{ dashboard.dashboard_name }}</h3>
+    {% if user %}
+        <input type="submit" value="Видалити дашбоард" id="delete_dashboard">
+        <input type="submit" value="Очистити голоси" id="clear_votes">
+    {% endif %}
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.8/clipboard.min.js"></script>
+
+Ключ для пошуку: <span id="dashboard-key">{{ dashboard.dashboard_key }}</span><br>
+<button id="copy-key-btn" data-clipboard-target="#dashboard-key">Скопіювати ключ дашбоарда</button>
+
+<script>
+    var copyKeyBtn = document.getElementById('copy-key-btn');
+    var clipboard = new ClipboardJS(copyKeyBtn);
+    clipboard.on('success', function(e) {
+        console.log('Ключ скопирован: ' + e.text);
+    });
+    clipboard.on('error', function(e) {
+        console.log('Не удалось скопировать ключ: ' + e.text);
+    });
+</script>
+
+
+<br>
+<br>
+
+<ul id="q-list">
+
+{% if latest_question_list %}
+
+    {% for question in latest_question_list %}
+
+        {% with counter=forloop.counter %}
+
+        <li id="q-{{question.id}}">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span>{{ question.question_text }}</span>
+                {% if user %}
+                    <input type="submit" value="Видалити питання" id="{{question.id}}" onclick="deleteButtonSubmit({{ question.id }})">
+                {% endif %}
+            </div>
+
+
+            <p>
+            {% for choice in question.choice_set.all %}
+                {% if not user %}
+                    <input type="radio" name="choice" id="choice{{ question.id }}{{ forloop.counter }}" value="{{ choice.id }}" onchange="enableDisableSubmit({{ question.id }}, {{ forloop.counter }})">
+                {% endif %}
+                <label id="label{{ question.id }}{{ forloop.counter }}" for="choice{{ question.id }}{{ forloop.counter }}">{{ choice.choice_text }} -- {{ choice.votes_yes }}</label>
+            {% endfor %}
+
+            {% if not user %}
+                <input type="submit" id="vote_button-{{ question.id }}" value="Підтвердити" disabled onclick="voteButtonSubmit({{question.id}})">
+            {% endif %}
+            </p>
+
+        </li>
+
+        {% endwith %}
+
+    {% endfor %}
+
+{% else %}
+    <p id="no-polls">Немає створених питань для голосування</p>
+{% endif %}
+
+</ul>
+
+
+
+<script>
+function enableDisableSubmit(questionID, choiceNumber) {
+    var radioID = "choice" + questionID + choiceNumber;
+    var submitButton = document.getElementById("vote_button-" + questionID);
+    if (document.getElementById(radioID).checked) {
+        submitButton.disabled = false;
+    } else {
+        submitButton.disabled = true;
+    }
+}
+</script>
+
+
+
+{% if user %}
+
+    <textarea name="text" required="" placeholder="Введіть питання" cols="30" rows="10" id="q-input"></textarea><br>
+    <button type="submit" id="q-submit">Додати питання</button>
+
+{% endif %}
+
+{{ dashboard.id|json_script:"d_id" }}
+{{ user|json_script:"user" }}
+{{ ip|json_script:"ip" }}
+<script>
+    const dashboard_id = JSON.parse(document.getElementById('d_id').textContent);
+    const user = JSON.parse(document.getElementById('user').textContent);
+    const ip = JSON.parse(document.getElementById('ip').textContent);
+
+    const chatSocket = new WebSocket(
+        'ws://'
+        + window.location.host
+        + '/ws/polls/'
+        + dashboard_id
+        + '/'
+    );
+
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        console.log(data)
+        if (data.action == 'add') {
+            displayQuestion(data.question,
+                            data.question_id,
+                            data.first_q,
+                            data.choice1_id,
+                            data.choice2_id,
+                            data.question_text,
+                            data.labels,
+                            data.percentages,
+                            user);
+        }
+        else if (data.action == 'delete_dashboard') {
+            window.location.href = window.location.origin + '/';
+            chatSocket.close();
+        }
+        else if (data.action == 'vote') {
+            questionID = data.question_id;
+
+            var labelID_1 = "label" + questionID + 1;
+            var labelElement_1 = document.getElementById(labelID_1);
+            var labelID_2 = "label" + questionID + 2;
+            var labelElement_2 = document.getElementById(labelID_2);
+
+            labelElement_1.textContent = `Так -- ${data.yes}`;
+            labelElement_2.textContent = `Ні -- ${data.no}`;
+
+            var label_q = document.getElementById("chart-label-"+questionID);
+            label_q.textContent = `${data.question_text} (всього голосів - ${data.total_votes})`
+
+
+            let canvas = document.getElementById(questionID+"-chart");
+            let chart = Chart.getChart(canvas);
+            chart.data.datasets[0].data = data.chart_data;
+            chart.data.labels = data.labels;
+            chart.update();
+
+
+            var radioID_1 = "choice" + questionID + 1;
+            var radioID_2 = "choice" + questionID + 2;
+            var radioButton1 = document.getElementById(radioID_1);
+            var radioButton2 = document.getElementById(radioID_2);
+            radioButton1.checked = false;
+            radioButton2.checked = false;
+
+            submitButton = document.getElementById("vote_button-" + questionID);
+            submitButton.disabled = true;
+
+        }
+        else if (data.action == 'clear_votes') {
+            location.reload();
+        }
+        else {
+            const questionElement = document.getElementById(`q-${data.question_id}`);
+            const chartElement = document.getElementById(`concrete-chart-${data.question_id}`);
+            console.log(chartElement)
+            questionElement.remove();
+            chartElement.remove();
+
+            if (data.last_q == 0) {
+                const element = document.createElement('p');
+                element.setAttribute('id', `no-polls`);
+                element.innerHTML = `No polls are available.`;
+                document.querySelector('#q-list').appendChild(element);
+            }
+        }
+
+    };
+
+    chatSocket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+        console.error(e);
+    };
+
+    document.querySelector('#q-input').focus();
+        document.querySelector('#q-input').onkeydown = function(e) {
+            if (e.keyCode === 13) {  // enter, return
+                e.preventDefault();
+                document.querySelector('#q-submit').click();
+            }
+        };
+
+    document.querySelector('#q-submit').onclick = function(e) {
+        const questionInputDom = document.querySelector('#q-input');
+        const question = questionInputDom.value;
+        if (question !== '') {
+            chatSocket.send(JSON.stringify({
+                'action': 'add', 'question': question, 'dashboard_id': dashboard_id
+            }));
+            questionInputDom.value = '';
+        }
+    };
+
+    document.querySelector('#delete_dashboard').onclick = function(e) {
+        chatSocket.send(JSON.stringify({
+            'action': 'delete_dashboard', 'dashboard_id': dashboard_id
+        }));
+    };
+
+    document.querySelector('#clear_votes').onclick = function(e) {
+        chatSocket.send(JSON.stringify({
+            'action': 'clear_votes', 'dashboard_id': dashboard_id
+        }));
+    };
+
+
+    function deleteButtonSubmit(questionId) {
+        chatSocket.send(JSON.stringify({
+            'action': 'delete', 'question_id': questionId, 'dashboard_id': dashboard_id
+        }));
+    };
+
+    function voteButtonSubmit(questionID) {
+        var radioID_1 = "choice" + questionID + 1;
+        var radioID_2 = "choice" + questionID + 2;
+
+        if (document.getElementById(radioID_1).checked) {
+            var radioButton = document.getElementById(radioID_1);
+            var value = radioButton.value;
+            var choice = 1
+        } else {
+            var radioButton = document.getElementById(radioID_2);
+            var value = radioButton.value;
+            var choice = 2
+        }
+
+        chatSocket.send(JSON.stringify({
+            'action': 'vote', 'question_id': questionID, 'choice_id': value, 'user_ip': ip
+        }));
+    }
+
+    function displayQuestion(questionData, question_id, first_q, choice1_id, choice2_id, question_text, labels, percentages, user) {
+
+        if (first_q == 0) {
+            const element = document.getElementById(`no-polls`);
+            element.remove();
+        }
+
+        const question = questionData.fields;
+        const newElement = document.createElement('li');
+        newElement.setAttribute('id', `q-${question_id}`);
+
+        // creator
+        if (user == 1) {
+            newElement.innerHTML = `
+                <span>${question.question_text}</span>
+                <input type="submit" value="Видалити питання" id="${question_id}" onclick="deleteButtonSubmit(${question_id})">
+                <br>
+                <p>
+                <label id="label${question_id}1" for="choice${question_id}1">Так -- 0</label>
+                <label id="label${question_id}2" for="choice${question_id}2">Ні -- 0</label>
+                </p>
+            `;
+        }
+        // guest
+        else {
+            newElement.innerHTML = `
+                <span>${question.question_text}</span>
+                <br>
+                <p>
+                <input type="radio" name="choice" id="choice${question_id}1" value="${choice1_id}" onchange="enableDisableSubmit(${question_id}, 1)">
+                <label id="label${question_id}1" for="choice${question_id}1">Так -- 0</label>
+                <input type="radio" name="choice" id="choice${question_id}2" value="${choice2_id}" onchange="enableDisableSubmit(${question_id}, 2)">
+                <label id="label${question_id}2" for="choice${question_id}2">Ні -- 0</label>
+                <input type="submit" id="vote_button-${question_id}" value="Підтвердити" disabled onclick="voteButtonSubmit(${question_id})">
+                </p>
+            `;
+        }
+
+        document.querySelector('#q-list').appendChild(newElement);
+
+
+        const new_chart = document.createElement('div');
+        //new_chart.style.display = 'flex';
+        new_chart.setAttribute('id', `concrete-chart-${question_id}`);
+        new_chart.innerHTML = `<h4 id="chart-label-${question_id}">${question_text} (всього голосів - 0)</h4>
+            <canvas id="${question_id}-chart"></canvas>`;
+        document.querySelector('#list-charts').appendChild(new_chart);
+        createChart(`${question_id}-chart`, labels, percentages, question_id);
+    };
+</script>
+
+
+
+<br>
+<br>
+
+<form action="{% url 'polls:mainPage' %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Повернутися на головну сторінку</button>
+</form>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function createChart(chartID, labels, data, q_id) {
+
+        var ctx = document.getElementById(chartID).getContext('2d');
+        ctx.canvas.parentNode.style.height = "200px";
+        ctx.canvas.parentNode.style.width = "200px";
+
+        id_of_chart = "my-chart-" + q_id;
+
+        var myChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: [
+              'rgba(255, 99, 132, 0.2)',
+              'rgba(54, 162, 235, 0.2)',
+              'rgba(255, 206, 86, 0.2)',
+              'rgba(75, 192, 192, 0.2)',
+              'rgba(153, 102, 255, 0.2)',
+              'rgba(255, 159, 64, 0.2)'
+            ],
+            borderColor: [
+              'rgba(255, 99, 132, 1)',
+              'rgba(54, 162, 235, 1)',
+              'rgba(255, 206, 86, 1)',
+              'rgba(75, 192, 192, 1)',
+              'rgba(153, 102, 255, 1)',
+              'rgba(255, 159, 64, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true
+        },
+        id: id_of_chart
+        });
+    }
+</script>
+
+
+<style>
+  #list-charts {
+    display: flex;
+    flex-direction: row;
+  }
+
+</style>
+
+<div id="list-charts">
+    {% for data in chart_data %}
+        <div id="concrete-chart-{{data.question_id}}">
+            <h4 id="chart-label-{{data.question_id}}">{{ data.question }} (всього голосів - {{ data.total_votes }})</h4>
+            <canvas id="{{ data.question_id }}-chart"></canvas>
+            <script>
+                createChart('{{ data.question_id }}-chart', {{ data.labels|safe }}, {{ data.data }}, {{data.question_id}});
+            </script>
+        </div>
+    {% endfor %}
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
