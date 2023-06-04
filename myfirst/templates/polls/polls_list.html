@@ -3,8 +3,8 @@
     <title>{{ dashboard.dashboard_name }}</title>
 
 </head>
-
-
+<body style="background-color:aquamarine;">
+</body>
 
 <div style="display: flex; align-items: center; gap: 10px;">
     <h3>{{ dashboard.dashboard_name }}</h3>
@@ -95,7 +95,7 @@ function enableDisableSubmit(questionID, choiceNumber) {
 
 {% if user %}
 
-    <textarea name="text" required="" placeholder="Введіть питання" cols="30" rows="10" id="q-input"></textarea><br>
+    <textarea name="text" required="" placeholder="Введіть питання" cols="40" rows="3" id="q-input"></textarea><br>
     <button type="submit" id="q-submit">Додати питання</button>
 
 {% endif %}

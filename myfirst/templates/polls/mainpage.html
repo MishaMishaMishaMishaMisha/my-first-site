@@ -6,11 +6,12 @@
 
 </head>
 
-<body>
+<body style="background-color:aquamarine;">
+
 
     <br>
     {% if request.user.is_authenticated %}
-        Вы вошли как <strong>{{ user.username }}</strong> |
+        Вітаємо, <strong>{{ user.username }}</strong> |
         <a href="{% url 'polls:logout' %}">Вийти</a>
     {% else %}
         <div>
@@ -25,7 +26,7 @@
     <br>
     <form action="{% url 'polls:createDashboard' %}" method="post">
         {% csrf_token %}
-        <textarea name="name" required="" placeholder="Введіть назву дашбоарду" cols="30" rows="3"></textarea><br>
+        <input name="name" required="" placeholder="Введіть назву дашбоарду" size="60"><br>
         <button type="submit">Створити дашбоард</button>
     </form>
 
@@ -34,7 +35,7 @@
 
     <form id="dashboard-form" method="post">
         {% csrf_token %}
-        <input type="text" id="dashboard-key-input" name="dashboard_key" required="" placeholder="Введіть ключ дашбоарду">
+        <input type="text" id="dashboard-key-input" name="dashboard_key" required="" placeholder="Введіть ключ дашбоарду" size="60"><br>
         <button type="submit">Знайти дашбоард</button>
     </form>
 

@@ -18,6 +18,7 @@ import string
 
 
 def get_client_ip(request):
+
     if request.user.is_authenticated:
         return request.user.username
 
@@ -55,6 +56,8 @@ def createDashboard(request):
 def index(request, dashboard_id):
 
     ip = get_client_ip(request)
+    #ip = timezone.now()
+
     dashboard = get_object_or_404(Dashboard, pk=dashboard_id)
 
     user = 0 # guest
@@ -84,13 +87,14 @@ def index(request, dashboard_id):
         chart_data.append({'question': question.question_text, 'question_id': question.id, 'labels': newLabels, 'data': percentages, 'total_votes': total_votes})
 
     #latest_question_list = Question.objects.all()
-    context = {'latest_question_list': latest_question_list, 'dashboard': dashboard, 'chart_data': chart_data, 'user': user, 'ip': user}
+    context = {'latest_question_list': latest_question_list, 'dashboard': dashboard, 'chart_data': chart_data, 'user': user, 'ip': ip}
     return render(request, 'polls/polls_list.html', context)
 
 
 def find_dashboard(request):
     if request.method == 'POST':
         dashboard_key = request.POST.get('dashboard_key')
+        user_name = request.POST.get('user_name')
         dashboard = Dashboard.objects.filter(dashboard_key=dashboard_key).first()
 
         if dashboard:
