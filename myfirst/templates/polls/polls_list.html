@@ -180,7 +180,7 @@ function enableDisableSubmit(questionID, choiceNumber) {
             if (data.last_q == 0) {
                 const element = document.createElement('p');
                 element.setAttribute('id', `no-polls`);
-                element.innerHTML = `No polls are available.`;
+                element.innerHTML = `Немає створених питань для голосування`;
                 document.querySelector('#q-list').appendChild(element);
             }
         }
